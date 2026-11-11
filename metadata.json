@@ -1,0 +1,6 @@
+{
+  "name": "Maison Vell",
+  "description": "A runway lookbook where six looks stand in a line into the distance and every drag brings the next one to the front.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
