@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SareeLook, TasselPiece } from '../types.ts';
-import { X, ZoomIn, ZoomOut, RotateCcw, Sparkles, ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCcw, Sparkles, ShoppingBag, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { formatWhatsAppOrderUrl, DEFAULT_WHATSAPP_NUMBER } from '../utils/whatsapp.ts';
 
 interface ImageZoomModalProps {
   isOpen: boolean;
@@ -10,6 +11,14 @@ interface ImageZoomModalProps {
   initialTitle?: string;
   initialPrice?: string;
   onAddToCart?: (piece: TasselPiece, look: SareeLook) => void;
+  whatsappNumber?: string;
+  onPlaceOrderWhatsApp?: (item: {
+    look?: SareeLook;
+    piece?: TasselPiece;
+    customImage?: string;
+    customTitle?: string;
+    customPrice?: string;
+  }) => void;
 }
 
 interface GalleryItem {
@@ -29,6 +38,8 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
   initialTitle,
   initialPrice,
   onAddToCart,
+  whatsappNumber,
+  onPlaceOrderWhatsApp,
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [scale, setScale] = useState<number>(1);
@@ -322,6 +333,37 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
                 {currentItem.price}
               </span>
             </div>
+
+            {/* Place Order on WhatsApp */}
+            <button
+              onClick={() => {
+                const pieceToOrder = currentItem.pieceRef || look?.pieces[0];
+                if (onPlaceOrderWhatsApp) {
+                  onPlaceOrderWhatsApp({
+                    look: look || undefined,
+                    piece: pieceToOrder,
+                    customImage: currentItem.url,
+                    customTitle: currentItem.title,
+                    customPrice: currentItem.price,
+                  });
+                } else {
+                  const url = formatWhatsAppOrderUrl({
+                    phone: whatsappNumber || DEFAULT_WHATSAPP_NUMBER,
+                    lookNumber: look?.lookNumber,
+                    lookTitle: look?.title,
+                    pieceName: currentItem.title,
+                    price: currentItem.price,
+                    imageUrl: currentItem.url,
+                  });
+                  window.open(url, '_blank');
+                }
+              }}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-emerald-600/20 font-inter"
+              title="Place Order on WhatsApp with full tassel details and photo"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Place Order on WhatsApp</span>
+            </button>
 
             {onAddToCart && look && (
               <button

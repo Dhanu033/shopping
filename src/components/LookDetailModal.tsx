@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SareeLook, TasselPiece } from '../types.ts';
-import { X, Heart, ShoppingBag, MessageSquare, Check, Sparkles, Clock, Scissors, ShieldCheck } from 'lucide-react';
+import { X, Heart, ShoppingBag, MessageSquare, Check, Sparkles, Clock, Scissors, ShieldCheck, Send } from 'lucide-react';
+import { cleanPhoneForWhatsApp, formatWhatsAppOrderUrl, DEFAULT_WHATSAPP_NUMBER } from '../utils/whatsapp.ts';
 
 interface LookDetailModalProps {
   isOpen: boolean;
@@ -9,6 +10,14 @@ interface LookDetailModalProps {
   onAddToCart: (piece: TasselPiece, look: SareeLook, selectedLength?: string) => void;
   isWishlisted: (pieceId: string) => boolean;
   onToggleWishlist: (piece: TasselPiece, look: SareeLook) => void;
+  whatsappNumber?: string;
+  onPlaceOrderWhatsApp?: (item: {
+    look?: SareeLook;
+    piece?: TasselPiece;
+    customImage?: string;
+    customTitle?: string;
+    customPrice?: string;
+  }) => void;
 }
 
 export const LookDetailModal: React.FC<LookDetailModalProps> = ({
@@ -18,6 +27,8 @@ export const LookDetailModal: React.FC<LookDetailModalProps> = ({
   onAddToCart,
   isWishlisted,
   onToggleWishlist,
+  whatsappNumber,
+  onPlaceOrderWhatsApp,
 }) => {
   const [selectedLength, setSelectedLength] = useState<string>('3.5" Traditional');
   const [activeTab, setActiveTab] = useState<'overview' | 'craftsmanship' | 'customization'>('overview');
@@ -40,15 +51,28 @@ export const LookDetailModal: React.FC<LookDetailModalProps> = ({
   };
 
   const openWhatsAppInquiry = () => {
-    const text = encodeURIComponent(
-      `Hello Lakshmi Tassels! I am interested in inquiring about Look #${look.lookNumber}: ${look.title}.\n` +
-      `Collection: ${look.collection}\n` +
-      `Saree Fabric: ${look.sareeFabric}\n` +
-      `Tassel Length: ${selectedLength}\n` +
-      `Pieces: ${look.pieces.map((p) => `${p.name} (${p.price})`).join(', ')}\n` +
-      `Could you provide customization details and delivery timeframe?`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    if (onPlaceOrderWhatsApp) {
+      onPlaceOrderWhatsApp({
+        look,
+        piece: look.pieces[0],
+        customImage: look.modelImage,
+        customTitle: `Look ${look.lookNumber} · ${look.title}`,
+        customPrice: look.pieces[0]?.price,
+      });
+      return;
+    }
+    const cleanNumber = cleanPhoneForWhatsApp(whatsappNumber || '') || DEFAULT_WHATSAPP_NUMBER;
+    const url = formatWhatsAppOrderUrl({
+      phone: cleanNumber,
+      lookNumber: look.lookNumber,
+      lookTitle: look.title,
+      pieceName: look.pieces[0]?.name || 'Bridal Saree Tassel',
+      price: look.pieces[0]?.price || '₹3,800',
+      length: selectedLength,
+      sareeFabric: look.sareeFabric,
+      imageUrl: look.modelImage,
+    });
+    window.open(url, '_blank');
   };
 
   return (

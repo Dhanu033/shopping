@@ -172,6 +172,31 @@ main {
   min-height: 0;
 }
 
+main.hidden,
+body.admin-open main,
+body.admin-open .stage,
+body.admin-open .line,
+body.admin-open .m,
+.stage.disabled-stage,
+.line.disabled-line,
+.hide-big-images #line,
+.hide-big-images .line,
+.hide-big-images .m,
+.hide-big-images .m-inner,
+.hide-big-images div#line > div > div,
+.option-selected #line,
+.option-selected #line > div,
+.option-selected #line > div > div,
+.option-selected .m,
+.option-selected .m-inner {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
 .stage {
   position: relative;
   overflow: hidden;

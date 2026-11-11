@@ -6,7 +6,9 @@ import { LookDetailModal } from './components/LookDetailModal.tsx';
 import { ImageZoomModal } from './components/ImageZoomModal.tsx';
 import { CartDrawer } from './components/CartDrawer.tsx';
 import { WishlistDrawer } from './components/WishlistDrawer.tsx';
-import { Heart, ShoppingBag, Sliders, Search, ArrowRight, Sparkles, ZoomIn } from 'lucide-react';
+import { Heart, ShoppingBag, Sliders, Search, ArrowRight, Sparkles, ZoomIn, Lock, Eye, EyeOff, MessageSquare, Phone } from 'lucide-react';
+import { PlaceOrderWhatsAppModal } from './components/PlaceOrderWhatsAppModal.tsx';
+import { DEFAULT_WHATSAPP_NUMBER, WHATSAPP_STORAGE_KEY, cleanPhoneForWhatsApp } from './utils/whatsapp.ts';
 
 const STORAGE_KEY = 'maison_vell_saree_looks_v1';
 
@@ -41,15 +43,58 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Array<{ piece: TasselPiece; look: SareeLook }>>([]);
 
-  // UI Modals
+  // UI Modals & Display Controls
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [showMovingBigImages, setShowMovingBigImages] = useState(true);
   const [selectedLookForModal, setSelectedLookForModal] = useState<SareeLook | null>(null);
   const [zoomModalLook, setZoomModalLook] = useState<SareeLook | null>(null);
+  const [placeOrderModalItem, setPlaceOrderModalItem] = useState<{
+    isOpen: boolean;
+    look: SareeLook | null;
+    piece?: TasselPiece | null;
+    customImage?: string;
+    customTitle?: string;
+    customPrice?: string;
+  }>({
+    isOpen: false,
+    look: null,
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [selectedDepartment, setSelectedDepartment] = useState<number | null>(null);
   const [isLoaded, setIsLoaded] = useState(true);
+
+  // WhatsApp Number configured in Admin
+  const [whatsappNumber, setWhatsappNumber] = useState<string>(() => {
+    try {
+      return localStorage.getItem(WHATSAPP_STORAGE_KEY) || DEFAULT_WHATSAPP_NUMBER;
+    } catch {
+      return DEFAULT_WHATSAPP_NUMBER;
+    }
+  });
+
+  const handleSaveWhatsappNumber = (newNumber: string) => {
+    const cleaned = cleanPhoneForWhatsApp(newNumber);
+    setWhatsappNumber(cleaned);
+    try {
+      localStorage.setItem(WHATSAPP_STORAGE_KEY, cleaned);
+    } catch (e) {
+      console.warn('Failed to save WhatsApp number', e);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdminOpen) {
+      document.body.classList.add('admin-open');
+    } else {
+      document.body.classList.remove('admin-open');
+    }
+    return () => {
+      document.body.classList.remove('admin-open');
+    };
+  }, [isAdminOpen]);
 
   // Active integer look displayed in UI
   const [currentLookIndex, setCurrentLookIndex] = useState(0);
@@ -479,17 +524,60 @@ export default function App() {
     };
   }, [looks, allRailPieces]);
 
+  // Filtered looks for catalog view when big moving images are turned off or an option is clicked
+  const filteredLooks = useMemo(() => {
+    if (selectedDepartment !== null && looks[selectedDepartment]) {
+      const selected = looks[selectedDepartment];
+      return [selected, ...looks.filter((_, i) => i !== selectedDepartment)];
+    }
+    if (activeCategory === 'bridal') {
+      return looks.filter(
+        (l) =>
+          l.collection.toLowerCase().includes('bridal') ||
+          l.pieces.some((p) => p.name.toLowerCase().includes('bridal') || p.name.toLowerCase().includes('kuchu'))
+      );
+    }
+    if (activeCategory === 'heirloom') {
+      return looks.filter((l) =>
+        l.pieces.some(
+          (p) =>
+            p.name.toLowerCase().includes('latkan') ||
+            p.name.toLowerCase().includes('zari') ||
+            p.name.toLowerCase().includes('pendant')
+        )
+      );
+    }
+    return looks;
+  }, [looks, activeCategory, selectedDepartment]);
+
   // Current active look
   const activeLook = looks[currentLookIndex] || looks[0];
   const totalCartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0);
 
+  // Big moving images in #line must not display whenever any other option is clicked
+  const isAnyOptionSelected = !showMovingBigImages || activeCategory !== 'all' || selectedDepartment !== null;
+
   return (
-    <div className="page">
+    <div
+      className={`page ${isAnyOptionSelected ? 'hide-big-images option-selected' : ''} ${
+        isAdminOpen ? 'admin-active' : ''
+      }`}
+    >
       {/* Header */}
       <header>
         <div className="r1">
           <div className="flex items-center gap-3">
-            <a href="#" className="brand wide" aria-label="Lakshmi Tassels">
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveCategory('all');
+                setSelectedDepartment(null);
+                setShowMovingBigImages(false);
+              }}
+              className="brand wide"
+              aria-label="Lakshmi Tassels"
+            >
               Lakshmi Tassels
               <span className="brand-tag">&middot; Saree Tassels Atelier</span>
             </a>
@@ -497,25 +585,58 @@ export default function App() {
 
           <nav className="tabs wide" aria-label="Sections">
             <button
-              onClick={() => setActiveCategory('all')}
-              className={activeCategory === 'all' ? 'on' : ''}
+              onClick={() => {
+                setActiveCategory('all');
+                setSelectedDepartment(null);
+                setShowMovingBigImages(false);
+              }}
+              className={
+                activeCategory === 'all' && !showMovingBigImages && selectedDepartment === null ? 'on' : ''
+              }
+              title="View Catalog (Big Images Off)"
             >
-              Runway
+              Catalog
             </button>
             <button
-              onClick={() => setActiveCategory('bridal')}
+              onClick={() => {
+                setActiveCategory('bridal');
+                setSelectedDepartment(null);
+                setShowMovingBigImages(false);
+              }}
               className={activeCategory === 'bridal' ? 'on' : ''}
+              title="View Bridal Kuchu Catalog (Big Images Off)"
             >
               Bridal Kuchu
             </button>
             <button
-              onClick={() => setActiveCategory('heirloom')}
+              onClick={() => {
+                setActiveCategory('heirloom');
+                setSelectedDepartment(null);
+                setShowMovingBigImages(false);
+              }}
               className={activeCategory === 'heirloom' ? 'on' : ''}
+              title="View Zari Latkans Catalog (Big Images Off)"
             >
               Zari Latkans
             </button>
             <button
-              onClick={() => setSelectedLookForModal(activeLook)}
+              onClick={() => {
+                setActiveCategory('all');
+                setSelectedDepartment(null);
+                setShowMovingBigImages(true);
+              }}
+              className={
+                activeCategory === 'all' && showMovingBigImages && selectedDepartment === null ? 'on' : ''
+              }
+              title="View 3D Runway Stage"
+            >
+              Runway (3D)
+            </button>
+            <button
+              onClick={() => {
+                setSelectedLookForModal(activeLook);
+                setShowMovingBigImages(false);
+              }}
               className="hover:text-slate-900"
             >
               Bespoke Order
@@ -523,14 +644,51 @@ export default function App() {
           </nav>
 
           <div className="acct wide">
-            {/* Admin Upload & Manage Button */}
+            {/* Direct button to turn off/on the big moving images */}
+            <button
+              onClick={() => {
+                if (showMovingBigImages) {
+                  setShowMovingBigImages(false);
+                } else {
+                  setShowMovingBigImages(true);
+                  setSelectedDepartment(null);
+                  setActiveCategory('all');
+                }
+              }}
+              className={`px-2.5 py-1.5 rounded-full text-[9.5px] font-['Michroma'] uppercase tracking-wider flex items-center gap-1.5 border transition-all ${
+                isAnyOptionSelected
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-semibold shadow-xs'
+                  : 'border-slate-300 text-slate-700 hover:border-slate-800 bg-white'
+              }`}
+              title={
+                !isAnyOptionSelected
+                  ? 'Turn off the moving big images covering the total page'
+                  : 'Turn on the 3D moving big images'
+              }
+            >
+              {isAnyOptionSelected ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Big Images: OFF (Turn On)</span>
+                  <span className="sm:hidden">Images: OFF</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="hidden sm:inline">Turn Off Big Images</span>
+                  <span className="sm:hidden">Images: ON</span>
+                </>
+              )}
+            </button>
+
+            {/* Admin Upload & Manage Button (Password Protected) */}
             <button
               onClick={() => setIsAdminOpen(true)}
               className="admin-badge-btn"
-              title="Upload Saree Images & Customize Lookbook"
+              title="Admin Control Center (Password Protected)"
             >
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>Admin Studio</span>
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>Admin</span>
             </button>
 
             <button
@@ -564,103 +722,253 @@ export default function App() {
 
         {/* Secondary Category Navigation */}
         <nav className="r2 wide" aria-label="Departments">
-          <button
-            onClick={() => jumpToLook(0)}
-            className={currentLookIndex === 0 ? 'active-cat' : ''}
-          >
-            Kanjivaram Silk
-          </button>
-          <button
-            onClick={() => jumpToLook(1)}
-            className={currentLookIndex === 1 ? 'active-cat' : ''}
-          >
-            Banarasi Zari
-          </button>
-          <button
-            onClick={() => jumpToLook(2)}
-            className={currentLookIndex === 2 ? 'active-cat' : ''}
-          >
-            Rose Gold Tissue
-          </button>
-          <button
-            onClick={() => jumpToLook(3)}
-            className={currentLookIndex === 3 ? 'active-cat' : ''}
-          >
-            Chanderi Organza
-          </button>
-          <button
-            onClick={() => jumpToLook(4)}
-            className={currentLookIndex === 4 ? 'active-cat' : ''}
-          >
-            Temple Heritage
-          </button>
-          <button
-            onClick={() => jumpToLook(5)}
-            className={currentLookIndex === 5 ? 'active-cat' : ''}
-          >
-            Bridal Trousseau
-          </button>
+          {looks.map((look, idx) => (
+            <button
+              key={look.id}
+              onClick={() => {
+                jumpToLook(idx);
+                setCurrentLookIndex(idx);
+                setSelectedDepartment(idx);
+                setShowMovingBigImages(false); // remove the big moving images when this or other option is clicked!
+              }}
+              className={selectedDepartment === idx && isAnyOptionSelected ? 'active-cat font-bold' : ''}
+              title={`View ${look.sareeFabric} collection (big images removed)`}
+            >
+              {look.sareeFabric.split(' ')[0]} {look.sareeFabric.split(' ')[1] || 'Silk'}
+            </button>
+          ))}
+          {selectedDepartment !== null && (
+            <button
+              onClick={() => {
+                setSelectedDepartment(null);
+                setShowMovingBigImages(false);
+              }}
+              className="text-[11px] text-rose-500 hover:text-rose-700 underline font-inter lowercase"
+            >
+              (show all)
+            </button>
+          )}
         </nav>
       </header>
 
-      {/* Main Viewport Stage & Synchronized Rail */}
-      <main>
-        <section
-          ref={stageRef}
-          className="stage"
-          id="stage"
-          aria-label="Lakshmi Tassels Runway. Drag, scroll or use arrow keys to change looks."
-          tabIndex={0}
-        >
-          {/* 3D Depth Runway Line */}
-          <div ref={lineRef} className="line" id="line"></div>
+      {/* Main Viewport Stage: Completely NOT rendered when Admin is open */}
+      {!isAdminOpen && (
+        <>
+          {/* Mode 1: When user selects any other option or clicks other option, big moving images are removed and clean catalog is displayed */}
+          {isAnyOptionSelected ? (
+            <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6 select-none animate-in fade-in duration-200">
+              <div className="max-w-7xl mx-auto space-y-5">
+                {/* Notice Bar */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center border border-emerald-200 shrink-0">
+                      <EyeOff className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="font-['Michroma'] uppercase text-xs tracking-wider font-semibold text-slate-900">
+                        {selectedDepartment !== null && looks[selectedDepartment]
+                          ? `${looks[selectedDepartment].sareeFabric} &middot; Big Images Removed`
+                          : 'Option Selected &middot; Big Moving Images Removed'}
+                      </h2>
+                      <p className="text-[11px] text-slate-500 font-inter">
+                        Select any tassel to zoom into its craftsmanship and place orders directly to WhatsApp (+{cleanPhoneForWhatsApp(whatsappNumber)})
+                      </p>
+                    </div>
+                  </div>
 
-          {/* Top Stage Brand Display */}
-          <div className="stage-top-brand">Lakshmi Tassels</div>
+                  <button
+                    onClick={() => {
+                      setShowMovingBigImages(true);
+                      setActiveCategory('all');
+                      setSelectedDepartment(null);
+                    }}
+                    className="px-3.5 py-1.5 text-xs font-['Michroma'] uppercase tracking-wider text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg flex items-center gap-1.5 transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Turn On 3D Runway</span>
+                  </button>
+                </div>
 
-          {/* Bottom Stage Price in Rupees & Zoom Action */}
-          <div className="stage-bottom-price-bar">
-            <div className="flex items-baseline gap-2.5">
-              <span className="price-tag-badge">Look {activeLook?.lookNumber}</span>
-              <span className="price-main font-inter tabular-nums">
-                {activeLook?.pieces[0]?.price || '₹3,800'}
-              </span>
-              <span className="price-label font-inter">
-                ({activeLook?.pieces[0]?.name})
-              </span>
+                {/* Grid of All Tassels and Saree Looks */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredLooks.map((look) => (
+                    <div
+                      key={look.id}
+                      className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                    >
+                      <div>
+                        {/* Image Preview with Zoom icon */}
+                        <div className="relative aspect-[4/3] bg-slate-100 border-b border-slate-100 overflow-hidden flex items-center justify-center">
+                          <img
+                            src={look.pieces[0]?.image || look.modelImage}
+                            alt={look.title}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded text-[10px] text-white font-mono flex items-center gap-1.5 border border-white/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            Look #{look.lookNumber}
+                          </div>
+                          <button
+                            onClick={() => setZoomModalLook(look)}
+                            className="absolute top-3 right-3 p-2 bg-white/90 hover:bg-white text-slate-900 rounded-full shadow-md transition-all hover:scale-110"
+                            title="Zoom and Inspect Image"
+                          >
+                            <ZoomIn className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Details */}
+                        <div className="p-5 space-y-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <h3 className="font-['Michroma'] uppercase text-xs font-bold text-slate-900 truncate">
+                              {look.pieces[0]?.name || look.title}
+                            </h3>
+                            <span className="font-inter font-bold text-base text-emerald-800 tabular-nums shrink-0">
+                              {look.pieces[0]?.price}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-inter line-clamp-1">
+                            {look.sareeFabric} &middot; {look.collection}
+                          </p>
+                          <p className="text-xs text-slate-600 font-inter line-clamp-2">
+                            {look.pieces[0]?.description || look.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div className="p-5 pt-0 flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setPlaceOrderModalItem({
+                              isOpen: true,
+                              look: look,
+                              piece: look.pieces[0],
+                              customImage: look.pieces[0]?.image || look.modelImage,
+                              customTitle: look.pieces[0]?.name || look.title,
+                              customPrice: look.pieces[0]?.price,
+                            });
+                          }}
+                          className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-['Michroma'] uppercase tracking-wider font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.02]"
+                          title="Place Order on WhatsApp with full tassel details and photo"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Place Order</span>
+                        </button>
+
+                        <button
+                          onClick={() => setZoomModalLook(look)}
+                          className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-medium flex items-center justify-center transition-colors"
+                          title="Zoom & Inspect Image"
+                        >
+                          <ZoomIn className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleAddToCart(look.pieces[0], look)}
+                          className="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-semibold flex items-center justify-center transition-colors"
+                          title="Add to Shopping Bag"
+                        >
+                          <ShoppingBag className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setZoomModalLook(activeLook)}
-                className="zoom-btn-pill"
-                title="Select and Zoom Saree Tassel Image"
+          ) : (
+            /* Mode 2: 3D Runway Stage & Synchronized Rail */
+            <main>
+              <section
+                ref={stageRef}
+                className="stage"
+                id="stage"
+                aria-label="Lakshmi Tassels Runway. Drag, scroll or use arrow keys to change looks."
+                tabIndex={0}
               >
-                <ZoomIn className="w-3.5 h-3.5" />
-                <span>Zoom Image</span>
-              </button>
-              <button
-                onClick={() => setSelectedLookForModal(activeLook)}
-                className="px-3 py-1.5 text-xs font-['Michroma'] uppercase tracking-wider text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors hidden sm:inline-flex items-center gap-1"
-                title="View Full Saree & Tassel Ensemble Details"
-              >
-                <span>Details</span>
-              </button>
-            </div>
-          </div>
+                {/* 3D Depth Runway Line */}
+                <div ref={lineRef} className="line" id="line"></div>
 
-          {/* Custom Interactive Ring Cursor */}
-          <div ref={ringRef} className="ring" id="ring"></div>
-        </section>
+                {/* Top Stage Brand Display */}
+                <div className="stage-top-brand">Lakshmi Tassels</div>
 
-        {/* Synchronized Looping Product Rail */}
-        <aside
-          ref={railRef}
-          className="rail"
-          id="rail"
-          aria-label="Handcrafted saree tassels and accessories in this look"
-        ></aside>
-      </main>
+                {/* Bottom Stage Price in Rupees & Zoom Action */}
+                <div className="stage-bottom-price-bar">
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="price-tag-badge">Look {activeLook?.lookNumber}</span>
+                    <span className="price-main font-inter tabular-nums">
+                      {activeLook?.pieces[0]?.price || '₹3,800'}
+                    </span>
+                    <span className="price-label font-inter">
+                      ({activeLook?.pieces[0]?.name})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Turn Off Big Images Button */}
+                    <button
+                      onClick={() => setShowMovingBigImages(false)}
+                      className="px-2.5 py-1.5 text-[10px] font-['Michroma'] uppercase tracking-wider text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors flex items-center gap-1.5"
+                      title="Turn off the big moving images"
+                    >
+                      <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="hidden sm:inline">Turn Off Big Images</span>
+                    </button>
+
+                    <button
+                      onClick={() => setZoomModalLook(activeLook)}
+                      className="zoom-btn-pill"
+                      title="Select and Zoom Saree Tassel Image"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                      <span>Zoom Image</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setPlaceOrderModalItem({
+                          isOpen: true,
+                          look: activeLook,
+                          piece: activeLook?.pieces[0],
+                          customImage: activeLook?.pieces[0]?.image || activeLook?.modelImage,
+                          customTitle: activeLook?.pieces[0]?.name || activeLook?.title,
+                          customPrice: activeLook?.pieces[0]?.price,
+                        });
+                      }}
+                      className="px-3.5 py-1.5 text-xs font-['Michroma'] uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-500 rounded-full shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all hover:scale-105"
+                      title="Place Order on WhatsApp with full tassel details and photo"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Place Order</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedLookForModal(activeLook)}
+                      className="px-3 py-1.5 text-xs font-['Michroma'] uppercase tracking-wider text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors hidden sm:inline-flex items-center gap-1"
+                      title="View Full Saree & Tassel Ensemble Details"
+                    >
+                      <span>Details</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custom Interactive Ring Cursor */}
+                <div ref={ringRef} className="ring" id="ring"></div>
+              </section>
+
+              {/* Synchronized Looping Product Rail */}
+              <aside
+                ref={railRef}
+                className="rail"
+                id="rail"
+                aria-label="Handcrafted saree tassels and accessories in this look"
+              ></aside>
+            </main>
+          )}
+        </>
+      )}
 
       {/* Loading Cover */}
       {!isLoaded && (
@@ -674,7 +982,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Admin Studio Modal */}
+      {/* Admin Studio Modal (Big moving images are 100% disabled and invisible when open) */}
       <AdminStudioModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
@@ -683,6 +991,8 @@ export default function App() {
         onResetDefaults={handleResetDefaults}
         activeLookIndex={currentLookIndex}
         onSelectLook={(idx) => jumpToLook(idx)}
+        whatsappNumber={whatsappNumber}
+        onSaveWhatsappNumber={handleSaveWhatsappNumber}
       />
 
       {/* Look Detail / Shop Modal */}
@@ -693,6 +1003,17 @@ export default function App() {
         onAddToCart={handleAddToCart}
         isWishlisted={isWishlisted}
         onToggleWishlist={handleToggleWishlist}
+        whatsappNumber={whatsappNumber}
+        onPlaceOrderWhatsApp={(item) => {
+          setPlaceOrderModalItem({
+            isOpen: true,
+            look: item.look || selectedLookForModal,
+            piece: item.piece,
+            customImage: item.customImage,
+            customTitle: item.customTitle,
+            customPrice: item.customPrice,
+          });
+        }}
       />
 
       {/* Interactive High-Res Image Zoom & Pan Modal */}
@@ -701,6 +1022,17 @@ export default function App() {
         onClose={() => setZoomModalLook(null)}
         look={zoomModalLook}
         onAddToCart={handleAddToCart}
+        whatsappNumber={whatsappNumber}
+        onPlaceOrderWhatsApp={(item) => {
+          setPlaceOrderModalItem({
+            isOpen: true,
+            look: item.look || zoomModalLook,
+            piece: item.piece,
+            customImage: item.customImage,
+            customTitle: item.customTitle,
+            customPrice: item.customPrice,
+          });
+        }}
       />
 
       {/* Cart Drawer */}
@@ -723,6 +1055,7 @@ export default function App() {
         }}
         onRemoveItem={(id) => setCartItems((prev) => prev.filter((i) => i.id !== id))}
         onClearCart={() => setCartItems([])}
+        whatsappNumber={whatsappNumber}
       />
 
       {/* Wishlist Drawer */}
@@ -732,6 +1065,18 @@ export default function App() {
         wishlist={wishlist}
         onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((w) => w.piece.id !== id))}
         onAddToCart={handleAddToCart}
+      />
+
+      {/* Place Order on WhatsApp Modal with Photo and Tassel Specifications */}
+      <PlaceOrderWhatsAppModal
+        isOpen={placeOrderModalItem.isOpen}
+        onClose={() => setPlaceOrderModalItem((prev) => ({ ...prev, isOpen: false }))}
+        look={placeOrderModalItem.look}
+        piece={placeOrderModalItem.piece}
+        customImage={placeOrderModalItem.customImage}
+        customTitle={placeOrderModalItem.customTitle}
+        customPrice={placeOrderModalItem.customPrice}
+        whatsappNumber={whatsappNumber}
       />
     </div>
   );

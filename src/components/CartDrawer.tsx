@@ -2,6 +2,8 @@ import React from 'react';
 import { CartItem } from '../types.ts';
 import { X, Trash2, Plus, Minus, MessageSquare, ShoppingBag, ArrowRight } from 'lucide-react';
 
+import { cleanPhoneForWhatsApp, DEFAULT_WHATSAPP_NUMBER } from '../utils/whatsapp.ts';
+
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -9,6 +11,7 @@ interface CartDrawerProps {
   onUpdateQuantity: (id: string, delta: number) => void;
   onRemoveItem: (id: string) => void;
   onClearCart: () => void;
+  whatsappNumber?: string;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -18,6 +21,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onUpdateQuantity,
   onRemoveItem,
   onClearCart,
+  whatsappNumber,
 }) => {
   if (!isOpen) return null;
 
@@ -25,19 +29,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const handleWhatsAppCheckout = () => {
     if (items.length === 0) return;
+    const cleanNumber = cleanPhoneForWhatsApp(whatsappNumber || '') || DEFAULT_WHATSAPP_NUMBER;
     const itemsList = items
       .map(
         (i, idx) =>
-          `${idx + 1}. ${i.pieceName} (Look ${i.lookNumber}) x${i.quantity} @ ${i.price} [Length: ${
-            i.selectedLength || 'Standard'
-          }]`
+          `🪡 Item ${idx + 1}: ${i.pieceName}\n   Look: #${i.lookNumber} (${i.lookTitle})\n   Quantity: ${i.quantity}\n   Price: ${i.price}\n   Length: ${i.selectedLength || 'Standard'}\n   Photo: ${i.image}`
       )
-      .join('\n');
+      .join('\n\n');
 
     const msg = encodeURIComponent(
-      `Hello Lakshmi Tassels Atelier!\nI would like to place an order for the following saree tassels & accessories:\n\n${itemsList}\n\nEstimated Total: ₹${totalAmount.toLocaleString()}\n\nPlease confirm availability and delivery timeframe for custom hand-knotting.`
+      `✨ *LAKSHMI TASSELS — BAG ORDER CHECKOUT* ✨\n--------------------------------------\n` +
+      `I would like to place an order for the following handcrafted saree tassels & accessories:\n\n${itemsList}\n\n` +
+      `--------------------------------------\n` +
+      `💰 *Estimated Total*: ₹${totalAmount.toLocaleString()}\n` +
+      `Please confirm order booking, custom saree color match, and handcrafting timeframe.`
     );
-    window.open(`https://wa.me/?text=${msg}`, '_blank');
+    window.open(`https://wa.me/${cleanNumber}?text=${msg}`, '_blank');
   };
 
   return (
