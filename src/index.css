@@ -541,6 +541,8 @@ main {
 
 .wait.gone {
   opacity: 0;
+  display: none !important;
+  pointer-events: none !important;
 }
 
 button:focus-visible, a:focus-visible {

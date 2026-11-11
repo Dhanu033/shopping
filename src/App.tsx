@@ -49,7 +49,7 @@ export default function App() {
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(true);
 
   // Active integer look displayed in UI
   const [currentLookIndex, setCurrentLookIndex] = useState(0);
@@ -169,7 +169,7 @@ export default function App() {
     const ring = ringRef.current;
     const roll = rollRef.current;
     const line = lineRef.current;
-    if (!stage || !rail || !ring || !roll || !line) return;
+    if (!stage || !rail || !ring || !line) return;
 
     const N = looks.length;
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -230,12 +230,14 @@ export default function App() {
       return card;
     });
 
-    // Build Look Number Roll items
-    roll.innerHTML = '';
-    for (let i = 0; i <= N; i++) {
-      const b = document.createElement('b');
-      b.textContent = (looks[i % N]?.lookNumber || 15 + (i % N)).toString();
-      roll.appendChild(b);
+    // Build Look Number Roll items if roll exists
+    if (roll) {
+      roll.innerHTML = '';
+      for (let i = 0; i <= N; i++) {
+        const b = document.createElement('b');
+        b.textContent = (looks[i % N]?.lookNumber || 15 + (i % N)).toString();
+        roll.appendChild(b);
+      }
     }
 
     const size = () => {
@@ -306,10 +308,9 @@ export default function App() {
           : `translate3d(0,${y.toFixed(1)}px,0)`;
       });
 
-      // 3. Rolling Look Number Window
-      const firstChild = roll.firstChild as HTMLElement;
-      if (firstChild) {
-        const itemH = firstChild.offsetHeight || 38;
+      // 3. Rolling Look Number Window (if element present)
+      if (roll && roll.firstChild) {
+        const itemH = (roll.firstChild as HTMLElement).offsetHeight || 38;
         roll.style.transform = `translate3d(0,${(-wrap(state.p, N) * itemH).toFixed(1)}px,0)`;
       }
 
@@ -662,14 +663,16 @@ export default function App() {
       </main>
 
       {/* Loading Cover */}
-      <div className={`wait ${isLoaded ? 'gone' : ''}`} id="wait">
-        <div className="flex flex-col items-center gap-3">
-          <span className="font-['Michroma'] uppercase text-sm tracking-widest text-slate-800">
-            Lakshmi Tassels
-          </span>
-          <span className="text-xs text-slate-500 font-inter">Loading runway depth lookbook...</span>
+      {!isLoaded && (
+        <div className="wait" id="wait">
+          <div className="flex flex-col items-center gap-3">
+            <span className="font-['Michroma'] uppercase text-sm tracking-widest text-slate-800">
+              Lakshmi Tassels
+            </span>
+            <span className="text-xs text-slate-500 font-inter">Loading runway depth lookbook...</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Admin Studio Modal */}
       <AdminStudioModal
